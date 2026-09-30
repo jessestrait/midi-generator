@@ -24,9 +24,10 @@
   --amber-dk:#8a5a12;
   --ink:#d9dae2;
   --ink-dim:#8b8d9c;
-  --roll:#1b1c20;         /* Ableton grid */
-  --roll-scale:#24262b;
-  --roll-black:#17181b;
+  --roll:#17181b;         /* Ableton grid, out-of-key rows */
+  --roll-scale:#2a2d34;   /* in-key rows */
+  --roll-black:#131416;
+  --off-red:#e5484d;      /* notes outside the mode */
   --line:#2f3137;
   --line-beat:#3b3d44;
   --line-bar:#565962;
@@ -239,7 +240,7 @@ body.dropping .app{outline:2px dashed var(--amber);outline-offset:6px}
         </div>
       </header>
       <div class="rollwrap" id="rollwrap"><canvas id="roll" tabindex="0" aria-label="Piano roll: click a cell to add or remove a note, click a key to hear it"></canvas></div>
-      <div class="hint"><kbd>SPACE</kbd> play/stop · <kbd>G</kbd> new seed · <kbd>←</kbd><kbd>→</kbd> takes · click the grid to add or remove notes · move any dial to reshape the current seed</div>
+      <div class="hint"><kbd>SPACE</kbd> play/stop · <kbd>G</kbd> new seed · <kbd>←</kbd><kbd>→</kbd> takes · click the grid to add or remove notes (bright rows are in key, notes outside the mode turn red) · move any dial to reshape the current seed</div>
     </section>
 
     <aside class="side">
@@ -546,16 +547,21 @@ function drawStatic(){
   const t=curTake();if(!t)return;const p=t.params,sc=MODES[p.mode];
   const c=octx;c.setTransform(G.dpr,0,0,G.dpr,0,0);
   c.fillStyle=C("--roll");c.fillRect(0,0,G.W,G.H);
+  c.font="10px "+C("--f-ui");c.textBaseline="middle";
   for(let pitch=G.hi;pitch>=G.lo;pitch--){
-    const y=RULER+(G.hi-pitch)*ROWH,pc=((pitch-p.root)%12+12)%12,inScale=sc.includes(pc);
-    c.fillStyle=inScale?C("--roll-scale"):(BLACK.has(pitch%12)?C("--roll-black"):C("--roll"));
+    const y=RULER+(G.hi-pitch)*ROWH,pc=((pitch-p.root)%12+12)%12,deg=sc.indexOf(pc),inScale=deg>=0,blk=BLACK.has(pitch%12);
+    /* grid row: in-key rows lifted, out-of-key rows sunk */
+    c.fillStyle=inScale?C("--roll-scale"):(blk?C("--roll-black"):C("--roll"));
     c.fillRect(KEYW,y,G.W-KEYW,ROWH);
-    if(pc===0){c.fillStyle="rgba(243,165,49,.07)";c.fillRect(KEYW,y,G.W-KEYW,ROWH);}
+    if(pc===0){c.fillStyle="rgba(243,165,49,.10)";c.fillRect(KEYW,y,G.W-KEYW,ROWH);}
     c.fillStyle=C("--line");c.fillRect(KEYW,y+ROWH-1,G.W-KEYW,1);
-    const blk=BLACK.has(pitch%12);
-    c.fillStyle=blk?"#1a1b1f":"#cfd0d6";c.fillRect(0,y,KEYW-2,ROWH-1);
-    if(pc===0){c.fillStyle=C("--amber");c.fillRect(KEYW-4,y,3,ROWH-1);}
-    if(pitch%12===0||pc===0){c.fillStyle=blk?"#cfd0d6":"#1a1b1f";c.font="10px "+C("--f-ui");c.textBaseline="middle";c.fillText(noteName(pitch),4,y+ROWH/2);}
+    /* key: bright when in the mode, greyed out when not, amber on the root */
+    c.fillStyle=pc===0?"#f7c46e":inScale?(blk?"#50535f":"#e2e3e9"):(blk?"#0e0f11":"#5d5f68");
+    c.fillRect(0,y,KEYW-2,ROWH-1);
+    if(inScale){c.fillStyle=pc===0?C("--amber"):"rgba(243,165,49,.55)";c.fillRect(KEYW-5,y,3,ROWH-1);}
+    const dark=pc===0||(inScale&&!blk);
+    if(pitch%12===0||pc===0){c.fillStyle=dark?"#1a1b1f":"#cfd0d6";c.fillText(noteName(pitch),4,y+ROWH/2);}
+    if(inScale){c.fillStyle=dark?"rgba(26,27,31,.75)":"rgba(226,227,233,.8)";c.fillText(String(deg+1),KEYW-14,y+ROWH/2);}
   }
   const perBeat=1/p.rate,perBar=4*perBeat;
   for(let s=0;s<=G.steps;s++){
@@ -574,8 +580,11 @@ function drawStatic(){
   t.notes.forEach(n=>{
     if(n.pitch<G.lo||n.pitch>G.hi)return;
     const x=KEYW+(n.start/p.rate)*G.stepW,w=Math.max(3,(n.dur/p.rate)*G.stepW-1),y=RULER+(G.hi-n.pitch)*ROWH+1;
-    c.globalAlpha=0.45+0.55*(n.vel/127);c.fillStyle=C("--amber");c.fillRect(x+1,y,w,ROWH-3);
-    c.globalAlpha=1;c.fillStyle=C("--amber-dk");c.fillRect(x+1,y+ROWH-4,w,1);c.fillRect(x+1,y,1,ROWH-3);
+    const out=!sc.includes(((n.pitch-p.root)%12+12)%12);
+    c.globalAlpha=0.45+0.55*(n.vel/127);c.fillStyle=out?C("--off-red"):C("--amber");c.fillRect(x+1,y,w,ROWH-3);
+    c.globalAlpha=1;
+    if(out){c.strokeStyle="#ffd7d8";c.lineWidth=1;c.strokeRect(x+1.5,y+0.5,w-1,ROWH-4);}
+    else{c.fillStyle=C("--amber-dk");c.fillRect(x+1,y+ROWH-4,w,1);c.fillRect(x+1,y,1,ROWH-3);}
   });
   c.globalAlpha=1;
 }
