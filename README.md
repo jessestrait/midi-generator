@@ -15,10 +15,17 @@ A browser tool for generating, auditioning and exporting MIDI sequences, built a
 - **Edit** notes by clicking the piano roll; click a key to hear it.
 - **Takes** list keeps up to 24 generations to flip between.
 - **Export** a standard `.mid` file with tempo and clip length, or drag the clip straight onto a Live track (Chrome).
+- **Winamp skins**: load any classic `.wsz` skin and the main window becomes a working, skinned Winamp player. Its buttons run the sequencer, the LED digits show bar:beat.step, the visualizer and playlist take the skin's colors. Eject rolls a new seed.
+
+## Skins
+
+Click **Load skin** or drop a `.wsz` file anywhere on the page. The last skin you loaded is remembered in your browser. Thousands of classic skins are browsable at the [Winamp Skin Museum](https://skins.webamp.org/).
+
+No skins ship with this repo: each skin is its author's artwork, so you bring your own. Only classic skins work (the ones with a `main.bmp` inside); modern `.wal` skins don't.
 
 ## Run it
 
-Open `index.html` in Chrome. No build step, no dependencies.
+Open `index.html` in Chrome. No build step; the only outside scripts are Google Fonts and JSZip (for reading skins) from cdnjs.
 
 To play into Live on a Mac: open Audio MIDI Setup, show the MIDI Studio, enable the **IAC Driver**, then in this page click **Connect MIDI**, choose the IAC bus, and arm a MIDI track in Live with that input. On Windows, use a virtual port such as loopMIDI.
 
