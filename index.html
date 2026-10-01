@@ -442,6 +442,33 @@ function ensureAudio(){
   master.connect(analyser);analyser.connect(AC.destination);applySynth();return AC;
 }
 function applySynth(){if(!AC)return;master.gain.value=SY.vol*0.9;dly.delayTime.value=(60/S.bpm)*0.75;fbk.gain.value=0.15+SY.delay*0.45;wet.gain.value=SY.delay*0.7;}
+/* iPhone/iPad: every browser there is WebKit, which (1) only starts audio inside a touch and
+   (2) mutes Web Audio with the ringer switch unless media is playing. A looping silent <audio>
+   moves the page into the "playback" category so the synth is heard with the switch on silent. */
+const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+let silentEl=null;
+function silentWavURI(){
+  const n=4000,b=new Uint8Array(44+n),v=new DataView(b.buffer),w=(o,s)=>{for(let i=0;i<s.length;i++)b[o+i]=s.charCodeAt(i);};
+  w(0,"RIFF");v.setUint32(4,36+n,true);w(8,"WAVE");w(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,8000,true);v.setUint32(28,8000,true);v.setUint16(32,1,true);v.setUint16(34,8,true);w(36,"data");v.setUint32(40,n,true);b.fill(128,44);
+  let s="";b.forEach(x=>s+=String.fromCharCode(x));return "data:audio/wav;base64,"+btoa(s);
+}
+function unlockAudio(){
+  try{
+    ensureAudio();
+    try{if(navigator.audioSession)navigator.audioSession.type="playback";}catch(e){}
+    if(AC.state!=="running"){
+      const p=AC.resume();if(p&&p.catch)p.catch(()=>{});
+      const src=AC.createBufferSource();src.buffer=AC.createBuffer(1,1,22050);src.connect(AC.destination);src.start(0);
+    }
+    if(IOS&&(!silentEl||silentEl.paused)){
+      if(!silentEl){silentEl=document.createElement("audio");silentEl.src=silentWavURI();silentEl.loop=true;silentEl.setAttribute("playsinline","");silentEl.setAttribute("x-webkit-airplay","deny");}
+      const p=silentEl.play();if(p&&p.catch)p.catch(()=>{});
+    }
+  }catch(e){}
+}
+["touchend","pointerup","click","keydown"].forEach(ev=>document.addEventListener(ev,unlockAudio,{capture:true,passive:true}));
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&AC&&AC.state!=="running"){const p=AC.resume();if(p&&p.catch)p.catch(()=>{});}});
 function voice(pitch,vel,t,dur){
   if(!SY.on||!AC)return;
   const f=440*Math.pow(2,(pitch-69)/12);
@@ -484,7 +511,7 @@ $("midiCh").addEventListener("change",e=>{midiCh=+e.target.value;});
 const T={playing:false,start:0,loopIdx:0,idx:0,timer:null,last:0,loopDur:1,beat:0.5};
 function loopDur(){return(curTake()?curTake().params.bars:S.bars)*4*(60/S.bpm);}
 function play(){
-  if(!curTake())return;ensureAudio();AC.resume();
+  if(!curTake())return;unlockAudio();
   T.beat=60/S.bpm;T.loopDur=loopDur();T.start=AC.currentTime+0.06;T.loopIdx=0;T.idx=0;T.last=AC.currentTime;T.playing=true;
   clearInterval(T.timer);T.timer=setInterval(sched,25);sched();updateTransport();
 }
@@ -521,7 +548,7 @@ $("btnStop").addEventListener("click",stop);
 $("btnPrev").addEventListener("click",()=>select(Math.max(0,cur-1)));
 $("btnNext").addEventListener("click",()=>select(Math.min(takes.length-1,cur+1)));
 $("btnGen").addEventListener("click",()=>newTake());
-function audition(pitch){ensureAudio();AC.resume();const t=AC.currentTime+0.01;voice(pitch,100,t,0.22);sendMidi(pitch,100,t,0.22);}
+function audition(pitch){unlockAudio();const t=AC.currentTime+0.01;voice(pitch,100,t,0.22);sendMidi(pitch,100,t,0.22);}
 
 /* ---------- piano roll ---------- */
 const KEYW=48,RULER=20,ROWH=13;
