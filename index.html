@@ -145,6 +145,58 @@ body.dropping .app{outline:2px dashed var(--amber);outline-offset:6px}
   .transport{flex-direction:row;flex-wrap:wrap;align-items:center}
   .pos{font-size:38px}
 }
+button,select,input,canvas,.pl li{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.act:disabled{opacity:.5;cursor:default}
+.dock,.bpm-step,.hint-touch{display:none}
+.dk{flex:0 0 58px;height:54px;display:grid;place-items:center;background:linear-gradient(#3c3e4c,#2a2b36);border:1px solid var(--chrome-lo);box-shadow:inset 1px 1px 0 var(--chrome-hi);color:var(--ink);padding:0;cursor:pointer}
+.dk svg{width:20px;height:20px;fill:currentColor}
+.dk:active{background:linear-gradient(#22232c,#30313d);box-shadow:inset 1px 1px 0 #000}
+.dk.play{flex:1 1 76px}
+.dk.play.on{color:var(--led)}
+.dk.play.on .ico-play,.dk.play:not(.on) .ico-stop{display:none}
+/* Touch devices: 44px+ targets, 16px form text (stops iOS zooming on focus), a fixed transport dock */
+@media (pointer:coarse){
+  body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+  select,input[type=number]{font-size:16px;min-height:44px;padding:8px 10px}
+  .act{min-height:44px;font-size:15px;padding:10px 16px}
+  #tbtns,#btnGen,.drag{display:none}
+  .transport{flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 12px}
+  .bpm{font-size:10px;gap:8px}
+  .bpm input{width:76px;text-align:center}
+  .bpm-step{display:grid;place-items:center;width:46px;height:44px;font:500 24px/1 var(--f-ui);color:var(--ink);background:linear-gradient(#3c3e4c,#2a2b36);border:1px solid var(--chrome-lo);box-shadow:inset 1px 1px 0 var(--chrome-hi);padding:0}
+  .bpm-step:active{background:linear-gradient(#22232c,#30313d);box-shadow:inset 1px 1px 0 #000}
+  .skinlink{font-size:14px;padding:12px 0}
+  .gen-grid{gap:12px}
+  .fld label,.lbl{font-size:12px}
+  .sl input{height:40px}
+  .sl output{font-size:20px}
+  .sl .ends{font-size:12px;margin-top:-6px}
+  .eq{flex-direction:column;align-items:stretch;gap:0}
+  .eqc{flex-direction:row-reverse;gap:12px}
+  .eqc input{writing-mode:horizontal-tb;direction:ltr;width:auto;flex:1;min-width:0;height:42px}
+  .eqc span{font-size:10px;width:32px}
+  .synth-side{margin:8px 0 0;flex-direction:row;flex-wrap:wrap;align-items:flex-end;gap:10px 16px}
+  .synth-side .fld{flex:1 1 120px}
+  .chk{font-size:15px;min-height:44px}
+  .chk input{width:22px;height:22px}
+  .clip-head{padding:10px}
+  .clip-actions{margin-left:0;width:100%}
+  .clip-actions .act{flex:1}
+  .pl ol{height:auto;min-height:150px;max-height:300px}
+  .pl li{padding:9px 12px;font-size:21px}
+  .pl.skinned ol{font-size:16px}
+  .pl-foot{gap:6px}
+  .pl-foot button{flex:1;min-height:44px;font-size:11px}
+  .hint{font-size:14px;line-height:1.5}
+  .hint-desk{display:none}
+  .hint-touch{display:inline}
+  .dock{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;gap:8px;align-items:stretch;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--chrome);border-top:1px solid var(--chrome-lo);box-shadow:inset 0 1px 0 var(--chrome-hi),0 -10px 24px rgba(0,0,0,.55)}
+  .dock .gen-btn{flex:1.5 1 120px;height:54px;font-size:13px;padding:0 8px}
+}
+@media (pointer:coarse) and (max-width:560px){
+  .sliders{grid-template-columns:minmax(0,1fr)}
+  .gen-grid .fld:first-child{grid-column:1 / -1}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -185,7 +237,7 @@ body.dropping .app{outline:2px dashed var(--amber);outline-offset:6px}
           <button class="tb" id="btnNext" title="Next take (→)" aria-label="Next take"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
         </div>
         <button class="gen-btn" id="btnGen" title="New seed (G)">GENERATE</button>
-        <label class="bpm" for="bpm">TEMPO <input type="number" id="bpm" min="40" max="220" step="1" value="118"></label>
+        <div class="bpm"><label for="bpm">TEMPO</label><button class="bpm-step" id="bpmDown" aria-label="Tempo down">−</button><input type="number" inputmode="numeric" id="bpm" min="40" max="220" step="1" value="118"><button class="bpm-step" id="bpmUp" aria-label="Tempo up">+</button></div>
         <div class="skinrow">
           <button class="act" id="btnSkin" title="Load a classic Winamp .wsz skin, or drop one anywhere on the page">Load skin</button>
           <button class="act" id="btnSkinOff" hidden>Default look</button>
@@ -244,7 +296,7 @@ body.dropping .app{outline:2px dashed var(--amber);outline-offset:6px}
         </div>
       </header>
       <div class="rollwrap" id="rollwrap"><canvas id="roll" tabindex="0" aria-label="Piano roll: click a cell to add or remove a note, click a key to hear it"></canvas></div>
-      <div class="hint"><kbd>SPACE</kbd> play/stop · <kbd>G</kbd> new seed · <kbd>←</kbd><kbd>→</kbd> takes · click the grid to add or remove notes (bright rows are in key, notes outside the mode turn red) · <kbd>R</kbd> ratchet tool, or shift-click a note, to retrigger it ×2 ×3 ×4 · move any dial to reshape the current seed</div>
+      <div class="hint"><span class="hint-touch">Tap the grid to add or remove notes. Bright rows are in key; notes outside the mode turn red. Turn on Ratchet tool, then tap a note to retrigger it ×2, ×3 or ×4. Moving any dial reshapes the current seed.</span><span class="hint-desk"><kbd>SPACE</kbd> play/stop · <kbd>G</kbd> new seed · <kbd>←</kbd><kbd>→</kbd> takes · click the grid to add or remove notes (bright rows are in key, notes outside the mode turn red) · <kbd>R</kbd> ratchet tool, or shift-click a note, to retrigger it ×2 ×3 ×4 · move any dial to reshape the current seed</span></div>
     </section>
 
     <aside class="side">
@@ -272,6 +324,13 @@ body.dropping .app{outline:2px dashed var(--amber);outline-offset:6px}
     </aside>
   </div>
 </div>
+
+<nav class="dock" id="dock" aria-label="Transport">
+  <button class="dk" id="dockPrev" aria-label="Previous take"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+  <button class="dk play" id="dockPlay" aria-label="Play"><svg class="ico-play" viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg><svg class="ico-stop" viewBox="0 0 16 16"><path d="M3 3h10v10H3z"/></svg></button>
+  <button class="dk" id="dockNext" aria-label="Next take"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+  <button class="gen-btn" id="dockGen">GENERATE</button>
+</nav>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
@@ -525,6 +584,10 @@ $("btnMidi").addEventListener("click",async()=>{
   try{midiAcc=await navigator.requestMIDIAccess();midiAcc.onstatechange=fillOuts;fillOuts();$("btnMidi").textContent="Refresh ports";flash("MIDI READY");}
   catch(e){$("midiNote").textContent="MIDI access was blocked here. Open the downloaded copy of this page in Chrome and allow MIDI when asked.";flash("MIDI BLOCKED");}
 });
+if(!navigator.requestMIDIAccess){
+  $("btnMidi").disabled=true;
+  $("midiNote").textContent=IOS?"iPhone and iPad browsers can't send MIDI. Export the .mid from here, or open this page on a computer to play straight into Live.":"This browser can't send MIDI. Open the page in Chrome on a computer to play straight into Live.";
+}
 $("midiOut").addEventListener("change",e=>{midiOut=midiAcc&&e.target.value?midiAcc.outputs.get(e.target.value):null;$("flagMidi").classList.toggle("on",!!midiOut);});
 $("midiCh").addEventListener("change",e=>{midiCh=+e.target.value;});
 
@@ -563,16 +626,28 @@ function applyNotesNow(){
   const ls=T.start+T.loopIdx*T.loopDur;
   T.idx=sorted.findIndex(n=>ls+n.start*T.beat>ref+1e-4);if(T.idx<0)T.idx=sorted.length;
 }
-function updateTransport(){$("btnPlay").classList.toggle("on",T.playing);$("stateIcon").textContent=T.playing?"▶":"■";}
+function updateTransport(){$("btnPlay").classList.toggle("on",T.playing);$("dockPlay").classList.toggle("on",T.playing);$("dockPlay").setAttribute("aria-label",T.playing?"Stop":"Play");$("stateIcon").textContent=T.playing?"▶":"■";}
 $("btnPlay").addEventListener("click",()=>{T.playing?retime():play();});
 $("btnStop").addEventListener("click",stop);
 $("btnPrev").addEventListener("click",()=>select(Math.max(0,cur-1)));
 $("btnNext").addEventListener("click",()=>select(Math.min(takes.length-1,cur+1)));
 $("btnGen").addEventListener("click",()=>newTake());
+$("dockPlay").addEventListener("click",()=>{T.playing?stop():play();});
+$("dockPrev").addEventListener("click",()=>select(Math.max(0,cur-1)));
+$("dockNext").addEventListener("click",()=>select(Math.min(takes.length-1,cur+1)));
+$("dockGen").addEventListener("click",()=>newTake());
+function bpmNudge(d){const e=$("bpm");e.value=Math.max(40,Math.min(220,(Math.round(+e.value)||118)+d));e.dispatchEvent(new Event("change"));}
+[["bpmDown",-1],["bpmUp",1]].forEach(([id,d])=>{
+  const el=$(id);let hold=null,rpt=null;const end=()=>{clearTimeout(hold);clearInterval(rpt);};
+  el.addEventListener("pointerdown",e=>{e.preventDefault();end();bpmNudge(d);hold=setTimeout(()=>{rpt=setInterval(()=>bpmNudge(d),70);},400);});
+  ["pointerup","pointerleave","pointercancel"].forEach(ev=>el.addEventListener(ev,end));
+  el.addEventListener("click",e=>{if(e.detail===0)bpmNudge(d);});
+});
 function audition(pitch){unlockAudio();const t=AC.currentTime+0.01;voice(pitch,100,t,0.22);sendMidi(pitch,100,t,0.22);}
 
 /* ---------- piano roll ---------- */
-const KEYW=48,RULER=20,ROWH=13;
+const COARSE=matchMedia("(pointer:coarse)").matches; /* touch: taller rows and wider steps, the roll scrolls sideways */
+const KEYW=COARSE?56:48,RULER=COARSE?26:20,ROWH=COARSE?24:13,MINSTEP=COARSE?28:9,KFONT=COARSE?13:10,RFONT=COARSE?13:11;
 const roll=$("roll"),rctx=roll.getContext("2d"),off=document.createElement("canvas"),octx=off.getContext("2d");
 const G={lo:48,hi:72,steps:32,stepW:20,W:600,H:300,dpr:1};
 const css=getComputedStyle(document.documentElement);
@@ -586,7 +661,7 @@ function computeView(){
   G.lo=Math.max(0,G.lo);G.hi=Math.min(127,G.hi);
   G.steps=Math.round(p.bars*4/p.rate);
   const cw=$("rollwrap").clientWidth||600;
-  G.stepW=Math.max(9,(cw-KEYW)/G.steps);
+  G.stepW=Math.max(MINSTEP,(cw-KEYW)/G.steps);
   G.W=Math.round(KEYW+G.stepW*G.steps);G.H=RULER+(G.hi-G.lo+1)*ROWH;G.dpr=window.devicePixelRatio||1;
   [roll,off].forEach(c=>{c.width=Math.round(G.W*G.dpr);c.height=Math.round(G.H*G.dpr);});
   roll.style.width=G.W+"px";roll.style.height=G.H+"px";
@@ -596,7 +671,7 @@ function drawStatic(){
   const t=curTake();if(!t)return;const p=t.params,sc=MODES[p.mode];
   const c=octx;c.setTransform(G.dpr,0,0,G.dpr,0,0);
   c.fillStyle=C("--roll");c.fillRect(0,0,G.W,G.H);
-  c.font="10px "+C("--f-ui");c.textBaseline="middle";
+  c.font=KFONT+"px "+C("--f-ui");c.textBaseline="middle";
   for(let pitch=G.hi;pitch>=G.lo;pitch--){
     const y=RULER+(G.hi-pitch)*ROWH,pc=((pitch-p.root)%12+12)%12,deg=sc.indexOf(pc),inScale=deg>=0,blk=BLACK.has(pitch%12);
     /* grid row: in-key rows lifted, out-of-key rows sunk */
@@ -621,10 +696,10 @@ function drawStatic(){
   }
   c.fillStyle="#26272d";c.fillRect(0,0,G.W,RULER);
   c.fillStyle=C("--amber");c.fillRect(KEYW,RULER-4,G.W-KEYW,3);
-  c.font="11px "+C("--f-ui");c.textBaseline="middle";
+  c.font=RFONT+"px "+C("--f-ui");c.textBaseline="middle";
   for(let b=0;b<p.bars;b++)for(let q=0;q<4;q++){
     const x=KEYW+(b*4+q)*perBeat*G.stepW;
-    if(q===0||G.stepW*perBeat>34){c.fillStyle=q===0?C("--ink"):C("--ink-dim");c.fillText(q===0?String(b+1):(b+1)+"."+(q+1),x+4,8);}
+    if(q===0||G.stepW*perBeat>34){c.fillStyle=q===0?C("--ink"):C("--ink-dim");c.fillText(q===0?String(b+1):(b+1)+"."+(q+1),x+4,RULER/2-2);}
   }
   t.notes.forEach(n=>{
     if(n.pitch<G.lo||n.pitch>G.hi)return;
