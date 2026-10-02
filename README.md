@@ -10,8 +10,9 @@ A browser tool for generating, auditioning and exporting MIDI sequences, built a
   - **Modal Walk**: a melody that steps through the mode with occasional leaps and held notes.
   - **Acid Morph**: a 16-step line that morphs from random to acid (root-heavy, octave jumps, slides, accents).
 - **Any root and mode**: Ionian through Locrian, plus Harmonic Minor and Phrygian Dominant.
-- **Dials reshape the current seed.** Density, Type, Range and Variation re-render the same seed, so an idea keeps its identity while you tweak it. **Generate** rolls a new seed.
+- **Dials reshape the current seed.** Density, Type, Range, Variation and Ratchet re-render the same seed, so an idea keeps its identity while you tweak it. **Generate** rolls a new seed.
 - **Audition** with a built-in saw/square/triangle synth (cutoff, resonance, decay, delay, volume), or send the notes live into Live over **Web MIDI**.
+- **Ratcheting**, the Tangerine Dream effect: chosen steps retrigger 2, 3 or 4 times inside one step, the way a Moog 960 sequencer with a 962 switch multiplies the clock on individual steps. The **Ratchet** dial assigns ratchets per step position, so they recur each cycle, and it never changes the underlying notes. The **Ratchet tool** (or shift-click) sets them by hand on any note. Ratchets play through the synth, MIDI out and the exported file.
 - **Edit** notes by clicking the piano roll; click a key to hear it.
 - **Takes** list keeps up to 24 generations to flip between.
 - **Export** a standard `.mid` file with tempo and clip length, or drag the clip straight onto a Live track (Chrome).
@@ -36,3 +37,5 @@ To play into Live on a Mac: open Audio MIDI Setup, show the MIDI Studio, enable 
 | Space | Play / stop |
 | G | New seed |
 | ← / → | Previous / next take |
+| R | Ratchet tool on / off |
+| Shift-click a note | Cycle its ratchet: ×2, ×3, ×4, off |

@@ -108,6 +108,7 @@ select,input[type=number]{font-family:var(--f-ui);font-size:13px;color:var(--ink
 .clip-actions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .act{font-family:var(--f-ui);font-size:12px;font-weight:500;color:var(--ink);background:#33353d;border:1px solid #0e0f12;padding:5px 10px;cursor:pointer}
 .act:hover{background:#3d4049}
+.act[aria-pressed="true"]{background:var(--led-dim);border-color:var(--led);color:#eafff0}
 .act.primary{background:var(--amber);color:#1a1204;border-color:var(--amber-dk)}
 .drag{font-size:12px;color:var(--ink-dim);border:1px dashed #555862;padding:4px 9px;cursor:grab;user-select:none}
 .rollwrap{overflow-x:auto;overflow-y:hidden;background:var(--roll)}
@@ -210,6 +211,7 @@ body.dropping .app{outline:2px dashed var(--amber);outline-offset:6px}
           <div class="sl"><label class="lbl" for="type">Type</label><output id="typeO"></output><input type="range" id="type" min="0" max="100" value="70"><div class="ends"><span id="typeLo">loose</span><span id="typeHi">strict</span></div></div>
           <div class="sl"><label class="lbl" for="range">Range</label><output id="rangeO"></output><input type="range" id="range" min="1" max="3" value="2"><div class="ends"><span>1 oct</span><span>3 oct</span></div></div>
           <div class="sl"><label class="lbl" for="variation">Variation</label><output id="variationO"></output><input type="range" id="variation" min="0" max="100" value="40"><div class="ends"><span>static</span><span>evolving</span></div></div>
+          <div class="sl"><label class="lbl" for="ratchet">Ratchet</label><output id="ratchetO"></output><input type="range" id="ratchet" min="0" max="100" value="25"><div class="ends"><span>none</span><span>heavy</span></div></div>
         </div>
       </div>
       <div class="dev-sec">
@@ -236,12 +238,13 @@ body.dropping .app{outline:2px dashed var(--amber);outline-offset:6px}
         <span class="clip-name" id="clipName">Take 1</span>
         <span class="clip-meta" id="clipMeta"></span>
         <div class="clip-actions">
+          <button class="act" id="btnRatchet" aria-pressed="false" title="Ratchet tool (R): click a note to retrigger it ×2, ×3 or ×4 inside its step. Shift-click does the same at any time.">Ratchet tool</button>
           <span class="drag" id="drag" draggable="true" tabindex="0" title="Drag the clip into a Live track (Chrome, local copy)">⠿ Drag to Live</span>
           <button class="act primary" id="btnExport">Export .mid</button>
         </div>
       </header>
       <div class="rollwrap" id="rollwrap"><canvas id="roll" tabindex="0" aria-label="Piano roll: click a cell to add or remove a note, click a key to hear it"></canvas></div>
-      <div class="hint"><kbd>SPACE</kbd> play/stop · <kbd>G</kbd> new seed · <kbd>←</kbd><kbd>→</kbd> takes · click the grid to add or remove notes (bright rows are in key, notes outside the mode turn red) · move any dial to reshape the current seed</div>
+      <div class="hint"><kbd>SPACE</kbd> play/stop · <kbd>G</kbd> new seed · <kbd>←</kbd><kbd>→</kbd> takes · click the grid to add or remove notes (bright rows are in key, notes outside the mode turn red) · <kbd>R</kbd> ratchet tool, or shift-click a note, to retrigger it ×2 ×3 ×4 · move any dial to reshape the current seed</div>
     </section>
 
     <aside class="side">
@@ -292,7 +295,7 @@ const ALGOS={
 const RATES=[{v:0.5,l:"1/8"},{v:0.25,l:"1/16"},{v:1/6,l:"1/16T"}];
 
 /* ---------- state ---------- */
-const S={algo:"berlin",root:4,mode:"Phrygian",octave:2,bars:2,rate:0.25,density:0.8,type:0.7,range:2,variation:0.4,bpm:118};
+const S={algo:"berlin",root:4,mode:"Phrygian",octave:2,bars:2,rate:0.25,density:0.8,type:0.7,range:2,variation:0.4,ratchet:0.25,bpm:118};
 const SY={cutoff:.48,res:.38,decay:.32,delay:.35,vol:.7,wave:"sawtooth",on:true};
 let takes=[],cur=-1,takeCounter=0,sorted=[];
 
@@ -301,7 +304,7 @@ function rng32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>
 const pick=(r,a)=>a[Math.floor(r()*a.length)];
 function weighted(r,pairs){let tot=0;pairs.forEach(p=>tot+=p[1]);let x=r()*tot;for(const p of pairs){x-=p[1];if(x<=0)return p[0];}return pairs[pairs.length-1][0];}
 function toMidi(p,deg){const sc=MODES[p.mode],n=sc.length,o=Math.floor(deg/n),i=((deg%n)+n)%n;return 12*(p.octave+2)+p.root+12*o+sc[i];}
-function snap(){return{algo:S.algo,root:S.root,mode:S.mode,octave:S.octave,bars:S.bars,rate:S.rate,density:S.density,type:S.type,range:S.range,variation:S.variation};}
+function snap(){return{algo:S.algo,root:S.root,mode:S.mode,octave:S.octave,bars:S.bars,rate:S.rate,density:S.density,type:S.type,range:S.range,variation:S.variation,ratchet:S.ratchet};}
 const noteName=p=>ROOTS[p%12]+(Math.floor(p/12)-2); /* Live's naming: MIDI 60 = C3 */
 
 /* ---------- generators ---------- */
@@ -321,6 +324,7 @@ function genBerlin(p,r){
     if(r()<p.variation*0.1)d+=7;
     notes.push({start:s*p.rate,dur:p.rate*0.82,pitch:toMidi(p,d),vel:first?112:74+Math.floor(r()*22)});
   }
+  notes.period=L;
   return notes;
 }
 function genEuclid(p,r){
@@ -373,8 +377,25 @@ function genMorph(p,r){
   return notes;
 }
 const GEN={berlin:genBerlin,euclid:genEuclid,walk:genWalk,morph:genMorph};
+/* Ratcheting, after Tangerine Dream's Moog 960 + 962 trick: chosen sequencer steps get a multiplied
+   clock, so that step retriggers 2, 3 or 4 times. The choice is per step position and repeats each
+   cycle. It uses its own RNG so the dial adds ratchets without changing the underlying notes. */
+function applyRatchets(notes,p,seed){
+  const amt=p.ratchet||0;if(amt<=0)return;
+  const perBar=Math.round(4/p.rate),period=notes.period||Math.min(16,perBar),rr=rng32((seed*7919+104729)|0),pat=[];
+  for(let i=0;i<period;i++){const u=rr(),c=rr();pat.push(u<amt*0.45*(i===0?0.3:1)?(c<0.5?2:c<0.8?3:4):1);}
+  notes.forEach(n=>{const k=pat[Math.round(n.start/p.rate)%period];if(k>1)n.r=k;});
+}
+function expandNote(n,p,total){
+  const k=n.r||1;if(k<2)return[n];
+  const span=Math.max(1,Math.round(n.dur/p.rate))*p.rate,sub=span/k,out=[];
+  for(let i=0;i<k;i++){const st=n.start+i*sub;if(st<total-1e-6)out.push({start:st,dur:sub*0.55,pitch:n.pitch,vel:Math.max(1,Math.round(n.vel*(i===0?1:0.86)))});}
+  return out;
+}
+function expand(t){const total=t.params.bars*4,out=[];t.notes.forEach(n=>out.push(...expandNote(n,t.params,total)));return out;}
 function renderNotes(p,seed){
   const notes=GEN[p.algo](p,rng32(seed));
+  applyRatchets(notes,p,seed);
   const total=p.bars*4;
   return notes.filter(n=>n.pitch>=0&&n.pitch<=127&&n.start<total).map(n=>({...n,dur:Math.min(n.dur,total-n.start)})).sort((a,b)=>a.start-b.start||a.pitch-b.pitch);
 }
@@ -399,7 +420,7 @@ function loadParams(p){
   Object.assign(S,p);
   $("algo").value=p.algo;$("root").value=p.root;$("mode").value=p.mode;$("octave").value=p.octave;$("bars").value=p.bars;
   $("rate").value=RATES.findIndex(x=>Math.abs(x.v-p.rate)<1e-6);
-  $("density").value=Math.round(p.density*100);$("type").value=Math.round(p.type*100);$("range").value=p.range;$("variation").value=Math.round(p.variation*100);
+  $("density").value=Math.round(p.density*100);$("type").value=Math.round(p.type*100);$("range").value=p.range;$("variation").value=Math.round(p.variation*100);$("ratchet").value=Math.round((p.ratchet||0)*100);
   syncOutputs();
 }
 
@@ -415,16 +436,16 @@ opt($("midiCh"),Array.from({length:16},(_,i)=>[i,i+1]));
 
 function syncOutputs(){
   $("densityO").textContent=Math.round(S.density*100);$("typeO").textContent=Math.round(S.type*100);
-  $("rangeO").textContent=S.range;$("variationO").textContent=Math.round(S.variation*100);
+  $("rangeO").textContent=S.range;$("variationO").textContent=Math.round(S.variation*100);$("ratchetO").textContent=Math.round((S.ratchet||0)*100);
   const a=ALGOS[S.algo];$("typeLo").textContent=a.lo;$("typeHi").textContent=a.hi;$("algoDesc").textContent=a.desc;
 }
 function readControls(){
   S.algo=$("algo").value;S.root=+$("root").value;S.mode=$("mode").value;S.octave=+$("octave").value;S.bars=+$("bars").value;
-  S.rate=RATES[+$("rate").value].v;S.density=$("density").value/100;S.type=$("type").value/100;S.range=+$("range").value;S.variation=$("variation").value/100;
+  S.rate=RATES[+$("rate").value].v;S.density=$("density").value/100;S.type=$("type").value/100;S.range=+$("range").value;S.variation=$("variation").value/100;S.ratchet=$("ratchet").value/100;
   syncOutputs();
 }
 ["algo","root","mode","octave","bars","rate"].forEach(id=>$(id).addEventListener("change",()=>{readControls();reshape();}));
-["density","type","range","variation"].forEach(id=>$(id).addEventListener("input",()=>{readControls();reshape();}));
+["density","type","range","variation","ratchet"].forEach(id=>$(id).addEventListener("input",()=>{readControls();reshape();}));
 
 $("bpm").addEventListener("change",()=>{let v=Math.round(+$("bpm").value)||118;v=Math.max(40,Math.min(220,v));$("bpm").value=v;S.bpm=v;$("ledBpm").textContent=v;applySynth();if(T.playing)retime();updateClipMeta();renderTakes();});
 function readSynth(){SY.cutoff=$("cutoff").value/100;SY.res=$("res").value/100;SY.decay=$("decay").value/100;SY.delay=$("delay").value/100;SY.vol=$("vol").value/100;SY.wave=$("wave").value;SY.on=$("synthOn").checked;$("flagSynth").classList.toggle("on",SY.on);applySynth();}
@@ -609,6 +630,12 @@ function drawStatic(){
     if(n.pitch<G.lo||n.pitch>G.hi)return;
     const x=KEYW+(n.start/p.rate)*G.stepW,w=Math.max(3,(n.dur/p.rate)*G.stepW-1),y=RULER+(G.hi-n.pitch)*ROWH+1;
     const out=!sc.includes(((n.pitch-p.root)%12+12)%12);
+    const k=n.r||1;
+    if(k>1){
+      const sw=Math.max(1,Math.round(n.dur/p.rate))*G.stepW/k,a=0.45+0.55*(n.vel/127);
+      for(let i=0;i<k;i++){c.globalAlpha=i===0?a:a*0.78;c.fillStyle=out?C("--off-red"):C("--amber");c.fillRect(x+1+i*sw,y,Math.max(2,sw-2),ROWH-3);}
+      c.globalAlpha=1;return;
+    }
     c.globalAlpha=0.45+0.55*(n.vel/127);c.fillStyle=out?C("--off-red"):C("--amber");c.fillRect(x+1,y,w,ROWH-3);
     c.globalAlpha=1;
     if(out){c.strokeStyle="#ffd7d8";c.lineWidth=1;c.strokeRect(x+1.5,y+0.5,w-1,ROWH-4);}
@@ -632,10 +659,18 @@ roll.addEventListener("click",e=>{
   if(x<KEYW){audition(pitch);return;}
   const step=Math.floor((x-KEYW)/G.stepW),beat=step*p.rate;
   const hit=t.notes.findIndex(n=>n.pitch===pitch&&beat>=n.start-1e-6&&beat<n.start+n.dur-1e-6);
-  if(hit>=0)t.notes.splice(hit,1);
+  if(hit>=0&&(ratchetTool||e.shiftKey)){
+    const n=t.notes[hit];n.r=((n.r||1)%4)+1;if(n.r===1)delete n.r;
+    flash(n.r?"RATCHET X"+n.r:"RATCHET OFF");
+    if(!T.playing){unlockAudio();const b=60/S.bpm,t0=AC.currentTime+0.02;expandNote(n,p,p.bars*4).forEach(s=>{const at=t0+(s.start-n.start)*b;voice(s.pitch,s.vel,at,s.dur*b);sendMidi(s.pitch,s.vel,at,s.dur*b);});}
+  }
+  else if(hit>=0)t.notes.splice(hit,1);
   else{t.notes.push({start:beat,dur:p.rate*0.9,pitch,vel:100});t.notes.sort((a,b)=>a.start-b.start||a.pitch-b.pitch);audition(pitch);}
   t.edited=true;notesChanged(true);
 });
+let ratchetTool=false;
+function setRatchetTool(on){ratchetTool=on;$("btnRatchet").setAttribute("aria-pressed",on?"true":"false");roll.style.cursor=on?"cell":"crosshair";flash(on?"RATCHET TOOL ON":"RATCHET TOOL OFF");}
+$("btnRatchet").addEventListener("click",()=>setRatchetTool(!ratchetTool));
 new ResizeObserver(()=>{if(curTake()){computeView();drawStatic();drawFrame();}}).observe($("rollwrap"));
 
 /* ---------- LED display ---------- */
@@ -794,7 +829,7 @@ function updateClipMeta(){
 }
 function notesChanged(fromEdit){
   const t=curTake();if(!t)return;
-  sorted=t.notes.slice().sort((a,b)=>a.start-b.start);
+  sorted=expand(t).sort((a,b)=>a.start-b.start);
   computeView();drawStatic();drawFrame();renderTakes();updateClipMeta();
   $("ledSeed").textContent=String(t.seed).padStart(5,"0");$("ledSteps").textContent=Math.round(t.params.bars*4/t.params.rate);$("ledNotes").textContent=t.notes.length;
   $("flagEdit").classList.toggle("on",t.edited);
@@ -811,14 +846,14 @@ $("plClr").addEventListener("click",()=>{const t=curTake();takes=[t];cur=0;notes
 /* ---------- MIDI file export ---------- */
 function vlq(v){const b=[v&0x7f];while(v>>=7)b.unshift((v&0x7f)|0x80);return b;}
 function midiBytes(t){
-  const ppq=96,ev=[];
-  t.notes.forEach(n=>{const on=Math.round(n.start*ppq),offT=Math.max(on+1,Math.round((n.start+n.dur)*ppq));ev.push({t:on,d:[0x90,n.pitch,n.vel],o:1});ev.push({t:offT,d:[0x80,n.pitch,0],o:0});});
+  const ppq=480,ev=[];
+  expand(t).forEach(n=>{const on=Math.round(n.start*ppq),offT=Math.max(on+1,Math.round((n.start+n.dur)*ppq));ev.push({t:on,d:[0x90,n.pitch,n.vel],o:1});ev.push({t:offT,d:[0x80,n.pitch,0],o:0});});
   ev.sort((a,b)=>a.t-b.t||a.o-b.o);
   const us=Math.round(60000000/S.bpm),name=[...new TextEncoder().encode(fileBase(t))];
   const trk=[0,0xFF,0x51,3,(us>>16)&255,(us>>8)&255,us&255, 0,0xFF,0x58,4,4,2,24,8, 0,0xFF,0x03,...vlq(name.length),...name];
   let last=0;ev.forEach(e=>{trk.push(...vlq(e.t-last),...e.d);last=e.t;});
   const endT=Math.round(t.params.bars*4*ppq);trk.push(...vlq(Math.max(0,endT-last)),0xFF,0x2F,0);
-  const hdr=[0x4D,0x54,0x68,0x64,0,0,0,6,0,0,0,1,0,ppq];
+  const hdr=[0x4D,0x54,0x68,0x64,0,0,0,6,0,0,0,1,(ppq>>8)&255,ppq&255];
   const len=trk.length,th=[0x4D,0x54,0x72,0x6B,(len>>>24)&255,(len>>16)&255,(len>>8)&255,len&255];
   return new Uint8Array([...hdr,...th,...trk]);
 }
@@ -862,6 +897,7 @@ document.addEventListener("keydown",e=>{
   if(tag==="input"||tag==="select"||tag==="textarea")return;
   if(e.code==="Space"){e.preventDefault();T.playing?stop():play();}
   else if(e.key==="g"||e.key==="G"){newTake();}
+  else if(e.key==="r"||e.key==="R"){setRatchetTool(!ratchetTool);}
   else if(e.key==="ArrowLeft"&&tag!=="li"){select(Math.max(0,cur-1));}
   else if(e.key==="ArrowRight"&&tag!=="li"){select(Math.min(takes.length-1,cur+1));}
 });
